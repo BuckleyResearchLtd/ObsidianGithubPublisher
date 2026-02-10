@@ -1,4 +1,4 @@
-import { App, TFile } from 'obsidian';
+import { App, Notice, TFile } from 'obsidian';
 import { MyPluginSettings } from 'settings';
 import { Octokit } from "octokit";
 import { CreateOrUpdateFiles } from "octokit-commit-multiple-files";
@@ -97,39 +97,46 @@ function transformImageLinks(app: App, content: string, sourcePath: string): str
 }
 
 export async function publishSingleFile(app: App, file: TFile, text: string, settings: MyPluginSettings, PAT: string, postType: string) {
-	const path = `src/content/${postType}/${file.name}`;
-	const commitMsg = `obsidian: create or update ${path} at ${new Date().toISOString()}`;
+	new Notice(`Publishing ${file.name}...`);
 
-	// Split frontmatter and content
-	const { frontmatter, content, hasFrontmatter } = splitFrontmatter(text);
+	try {
+		const path = `src/content/${postType}/${file.name}`;
+		const commitMsg = `obsidian: create or update ${path} at ${new Date().toISOString()}`;
 
-	// Transform frontmatter image links to plain paths (no markdown syntax)
-	const transformedFrontmatter = hasFrontmatter
-		? transformFrontmatterImageLinks(app, frontmatter, file.path)
-		: '';
+		const { frontmatter, content, hasFrontmatter } = splitFrontmatter(text);
 
-	// Transform content image wikilinks to standard markdown
-	const transformedContent = transformImageLinks(app, content, file.path);
+		const transformedFrontmatter = hasFrontmatter
+			? transformFrontmatterImageLinks(app, frontmatter, file.path)
+			: '';
 
-	// Recombine
-	const transformedText = hasFrontmatter
-		? `---\n${transformedFrontmatter}\n---\n${transformedContent}`
-		: transformedContent;
+		const transformedContent = transformImageLinks(app, content, file.path);
 
-	// Get images from content (existing method)
-	const imageLinksFromContent = getImagesFromFile(app, file);
+		const transformedText = hasFrontmatter
+			? `---\n${transformedFrontmatter}\n---\n${transformedContent}`
+			: transformedContent;
 
-	// Get images from frontmatter
-	const imageLinksFromFrontmatter = hasFrontmatter
-		? getImagesFromFrontmatter(frontmatter)
-		: [];
+		const imageLinksFromContent = getImagesFromFile(app, file);
 
-	// Combine and deduplicate
-	const allImageLinks = [...new Set([...imageLinksFromContent, ...imageLinksFromFrontmatter])];
+		const imageLinksFromFrontmatter = hasFrontmatter
+			? getImagesFromFrontmatter(frontmatter)
+			: [];
 
-	const images = await Promise.all(allImageLinks.map(link => resolveImage(app, link, file.path)));
+		const allImageLinks = [...new Set([...imageLinksFromContent, ...imageLinksFromFrontmatter])];
 
-	await githubPostFile(transformedText, path, settings, PAT, commitMsg, images);
+		const images = await Promise.all(allImageLinks.map(link => resolveImage(app, link, file.path)));
+
+		await githubPostFile(transformedText, path, settings, PAT, commitMsg, images);
+
+		const imageCount = images.length;
+		const msg = imageCount > 0
+			? `Published ${file.name} with ${imageCount} image${imageCount === 1 ? '' : 's'}`
+			: `Published ${file.name}`;
+		new Notice(msg);
+	} catch (error: any) {
+		const errorMsg = error?.message || String(error) || 'Unknown error';
+		new Notice(`Failed to publish ${file.name}: ${errorMsg}`);
+		throw error;
+	}
 }
 
 function getImagesFromFile(app: App, file: TFile): string[] {
@@ -158,7 +165,7 @@ async function githubPostFile(text: string, path: string, settings: MyPluginSett
 		files[image.path] = image.base64;
 	}
 
-	const res = await octokit.createOrUpdateFiles({
+	await octokit.createOrUpdateFiles({
 		owner: settings.owner,
 		repo: settings.repo,
 		branch: "main",
@@ -166,9 +173,8 @@ async function githubPostFile(text: string, path: string, settings: MyPluginSett
 		changes: [{
 			message: commitMsg,
 			files: files,
-		}]});
-	console.log("res", res)
-	//todo give feedback
+		}]
+	});
 }
 
 async function githubDeleteFiles(paths: string[], settings: MyPluginSettings, PAT: string, commitMsg: string) {
@@ -218,28 +224,38 @@ async function getUnusedImages(app: App, imagePaths: string[], excludeFile: TFil
 }
 
 export async function unpublishSingleFile(app: App, file: TFile, settings: MyPluginSettings, PAT: string, postType: string) {
-	const path = `src/content/${postType}/${file.name}`;
+	new Notice(`Unpublishing ${file.name}...`);
 
-	// Get images from the file being unpublished
-	const imageLinks = getImagesFromFile(app, file);
-	const imagePaths = await Promise.all(
-		imageLinks.map(async link => {
-			const imageFile = app.metadataCache.getFirstLinkpathDest(link, file.path);
-			if (!imageFile) return null;
-			const sanitizedFilename = imageFile.name.replace(/\s+/g, '-');
-			return `src/assets/${sanitizedFilename}`;
-		})
-	);
-	const validImagePaths = imagePaths.filter((p): p is string => p !== null);
+	try {
+		const path = `src/content/${postType}/${file.name}`;
 
-	// Find images that aren't used in other published files
-	const imagesToDelete = await getUnusedImages(app, validImagePaths, file);
+		const imageLinks = getImagesFromFile(app, file);
+		const imagePaths = await Promise.all(
+			imageLinks.map(async link => {
+				const imageFile = app.metadataCache.getFirstLinkpathDest(link, file.path);
+				if (!imageFile) return null;
+				const sanitizedFilename = imageFile.name.replace(/\s+/g, '-');
+				return `src/assets/${sanitizedFilename}`;
+			})
+		);
+		const validImagePaths = imagePaths.filter((p): p is string => p !== null);
 
-	// Collect all paths to delete (markdown file + unused images)
-	const allPathsToDelete = [path, ...imagesToDelete];
+		const imagesToDelete = await getUnusedImages(app, validImagePaths, file);
 
-	const commitMsg = `obsidian: deleted ${path}${imagesToDelete.length > 0 ? ` and ${imagesToDelete.length} unused image(s)` : ''} at ${new Date().toISOString()}`;
-	await githubDeleteFiles(allPathsToDelete, settings, PAT, commitMsg);
+		const allPathsToDelete = [path, ...imagesToDelete];
+
+		const commitMsg = `obsidian: deleted ${path}${imagesToDelete.length > 0 ? ` and ${imagesToDelete.length} unused image(s)` : ''} at ${new Date().toISOString()}`;
+		await githubDeleteFiles(allPathsToDelete, settings, PAT, commitMsg);
+
+		const msg = imagesToDelete.length > 0
+			? `Unpublished ${file.name} and deleted ${imagesToDelete.length} unused image${imagesToDelete.length === 1 ? '' : 's'}`
+			: `Unpublished ${file.name}`;
+		new Notice(msg);
+	} catch (error: any) {
+		const errorMsg = error?.message || String(error) || 'Unknown error';
+		new Notice(`Failed to unpublish ${file.name}: ${errorMsg}`);
+		throw error;
+	}
 }
 
 
