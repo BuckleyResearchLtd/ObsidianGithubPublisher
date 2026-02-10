@@ -1,90 +1,145 @@
-# Obsidian Sample Plugin
+# GitHub Publisher
 
-This is a sample plugin for Obsidian (https://obsidian.md).
+Publish markdown notes and images from Obsidian to GitHub repositories. The plugin supports content collections and handles image uploads automatically.
 
-This project uses TypeScript to provide type checking and documentation.
-The repo depends on the latest plugin API (obsidian.d.ts) in TypeScript Definition format, which contains TSDoc comments describing what it does.
+If you don't know what your doing, this probably isn't for you. I'd recommend using the [Obsidian Digital Garden](https://dg-docs.ole.dev/) plugin instead. It does pretty much the same thing, however because I'd already built a site using Astro, making it work for my use case was harder than writing my own from scratch, but that plugin is basically this one but better.
 
-This sample plugin demonstrates some of the basic functionality the plugin API can do.
-- Adds a ribbon icon, which shows a Notice when clicked.
-- Adds a command "Open modal (simple)" which opens a Modal.
-- Adds a plugin setting tab to the settings page.
-- Registers a global click event and output 'click' to the console.
-- Registers a global interval which logs 'setInterval' to the console.
+## Features
 
-## First time developing plugins?
+The plugin publishes markdown files to a GitHub repository. It converts Obsidian wikilinks to standard markdown syntax. Images embedded in notes are uploaded to a specified assets directory. The plugin can organize content by post type in subdirectories or publish to a flat structure.
 
-Quick starting guide for new plugin devs:
+Files are published when the `pb-publish` frontmatter field is set to `true`. The `pb-type` field determines the content subdirectory. Both fields are required.
 
-- Check if [someone already developed a plugin for what you want](https://obsidian.md/plugins)! There might be an existing plugin similar enough that you can partner up with.
-- Make a copy of this repo as a template with the "Use this template" button (login to GitHub if you don't see it).
-- Clone your repo to a local development folder. For convenience, you can place this folder in your `.obsidian/plugins/your-plugin-name` folder.
-- Install NodeJS, then run `npm i` in the command line under your repo folder.
-- Run `npm run dev` to compile your plugin from `main.ts` to `main.js`.
-- Make changes to `main.ts` (or create new `.ts` files). Those changes should be automatically compiled into `main.js`.
-- Reload Obsidian to load the new version of your plugin.
-- Enable plugin in settings window.
-- For updates to the Obsidian API run `npm update` in the command line under your repo folder.
+Images are tracked across all published notes. When unpublishing a note, images used only by that note are deleted. Images shared by other published notes are preserved.
 
-## Releasing new releases
+## Installation
 
-- Update your `manifest.json` with your new version number, such as `1.0.1`, and the minimum Obsidian version required for your latest release.
-- Update your `versions.json` file with `"new-plugin-version": "minimum-obsidian-version"` so older versions of Obsidian can download an older version of your plugin that's compatible.
-- Create new GitHub release using your new version number as the "Tag version". Use the exact version number, don't include a prefix `v`. See here for an example: https://github.com/obsidianmd/obsidian-sample-plugin/releases
-- Upload the files `manifest.json`, `main.js`, `styles.css` as binary attachments. Note: The manifest.json file must be in two places, first the root path of your repository and also in the release.
-- Publish the release.
+### From Obsidian Community Plugins
 
-> You can simplify the version bump process by running `npm version patch`, `npm version minor` or `npm version major` after updating `minAppVersion` manually in `manifest.json`.
-> The command will bump version in `manifest.json` and `package.json`, and add the entry for the new version to `versions.json`
+Search for "GitHub Publisher" in the Obsidian community plugins browser. Install and enable the plugin.
 
-## Adding your plugin to the community plugin list
+### Manual Installation
 
-- Check the [plugin guidelines](https://docs.obsidian.md/Plugins/Releasing/Plugin+guidelines).
-- Publish an initial version.
-- Make sure you have a `README.md` file in the root of your repo.
-- Make a pull request at https://github.com/obsidianmd/obsidian-releases to add your plugin.
+Copy `main.js`, `manifest.json`, and `styles.css` to your vault's plugin directory at `.obsidian/plugins/github-publisher/`.
 
-## How to use
+## Configuration
 
-- Clone this repo.
-- Make sure your NodeJS is at least v16 (`node --version`).
-- `npm i` or `yarn` to install dependencies.
-- `npm run dev` to start compilation in watch mode.
+The plugin requires a GitHub personal access token with repository write permissions. Configure the following settings:
 
-## Manually installing the plugin
+### Required Settings
 
-- Copy over `main.js`, `styles.css`, `manifest.json` to your vault `VaultFolder/.obsidian/plugins/your-plugin-id/`.
+- **GitHub Owner**: Repository owner username
+- **GitHub Repository**: Repository name
+- **GitHub PAT**: Personal access token with write access
+- **Branch**: Target branch for commits (default: `main`)
 
-## Improve code quality with eslint
-- [ESLint](https://eslint.org/) is a tool that analyzes your code to quickly find problems. You can run ESLint against your plugin to find common bugs and ways to improve your code. 
-- This project already has eslint preconfigured, you can invoke a check by running`npm run lint`
-- Together with a custom eslint [plugin](https://github.com/obsidianmd/eslint-plugin) for Obsidan specific code guidelines.
-- A GitHub action is preconfigured to automatically lint every commit on all branches.
+### Path Settings
 
-## Funding URL
+- **Content Directory**: Base directory for markdown files (default: `src/content/`)
+- **Assets Directory**: Directory for images (default: `src/assets/`)
+- **Assets Relative Path**: Relative path from content to assets (default: `../../assets/`)
 
-You can include funding URLs where people who use your plugin can financially support it.
+### Structure Settings
 
-The simple way is to set the `fundingUrl` field to your link in your `manifest.json` file:
+- **Use Post Type Subdirectories**: Organize content by post type (default: enabled)
 
-```json
-{
-    "fundingUrl": "https://buymeacoffee.com"
-}
+When enabled, files are published to `{contentDir}/{postType}/{filename}`. When disabled, files are published to `{contentDir}/{filename}`.
+
+## Usage
+
+### Publishing a Note
+
+Add frontmatter to your note:
+
+```yaml
+---
+pb-publish: true
+pb-type: blog
+---
 ```
 
-If you have multiple URLs, you can also do:
+Run the command "Publish current page" from the command palette.
 
-```json
-{
-    "fundingUrl": {
-        "Buy Me a Coffee": "https://buymeacoffee.com",
-        "GitHub Sponsor": "https://github.com/sponsors",
-        "Patreon": "https://www.patreon.com/"
-    }
-}
+The plugin uploads the markdown file and any embedded images. It converts image wikilinks to relative paths. Frontmatter image references use plain paths. Content image references use markdown syntax.
+
+### Unpublishing a Note
+
+Run the command "Unpublish Current Page" from the command palette.
+
+The plugin deletes the markdown file from GitHub. It checks all other published notes for image usage. Images not used elsewhere are deleted. Shared images are preserved.
+
+### Frontmatter Image Links
+
+Images in frontmatter are supported:
+
+```yaml
+---
+cover: [[hero-image.png]]
+---
 ```
 
-## API Documentation
+The plugin converts these to paths:
 
-See https://docs.obsidian.md
+```yaml
+---
+cover: ../../assets/hero-image.png
+---
+```
+
+## Commands
+
+- **Publish current page**: Publishes the active note
+- **Unpublish Current Page**: Removes the active note from GitHub
+
+## How It Works
+
+The plugin uses the GitHub API through Octokit. All file operations are batched into single atomic commits. Image filenames are sanitized by replacing spaces with hyphens.
+
+When publishing, the plugin:
+1. Reads the frontmatter and content
+2. Resolves all image wikilinks to actual files
+3. Transforms wikilinks to relative paths or markdown syntax
+4. Converts images to base64
+5. Creates a single commit with the markdown file and all images
+
+When unpublishing, the plugin:
+1. Identifies the file to delete
+2. Collects all images embedded in the file
+3. Checks other published notes for image usage
+4. Deletes the file and unused images in a single commit
+
+## Requirements
+
+- Obsidian v0.15.0 or higher
+- GitHub repository with write access
+- GitHub personal access token
+
+## Development
+
+Install dependencies:
+
+```bash
+npm install
+```
+
+Build the plugin:
+
+```bash
+npm run build
+```
+
+Run in development mode:
+
+```bash
+npm run dev
+```
+
+Lint the code:
+
+```bash
+npm run lint
+```
+
+## License
+
+0-BSD

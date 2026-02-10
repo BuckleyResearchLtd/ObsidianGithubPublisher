@@ -1,11 +1,9 @@
 import {App, Editor, MarkdownView, Modal, Notice, Plugin, TFile} from 'obsidian';
-import { MyPluginSettings, SampleSettingTab} from "./settings";
+import { DEFAULT_SETTINGS, GitHubPublisherSettings, GitHubPublisherSettingTab} from "./settings";
 import { publishSingleFile, unpublishSingleFile } from './publish';
 
-// Remember to rename these classes and interfaces!
-
-export default class MyPlugin extends Plugin {
-	settings: MyPluginSettings;
+export default class GitHubPublisherPlugin extends Plugin {
+	settings: GitHubPublisherSettings;
 
 	async onload() {
 		await this.loadSettings();
@@ -80,8 +78,7 @@ export default class MyPlugin extends Plugin {
 			}
 		});
 
-		// This adds a settings tab so the user can configure various aspects of the plugin
-		this.addSettingTab(new SampleSettingTab(this.app, this));
+		this.addSettingTab(new GitHubPublisherSettingTab(this.app, this));
 
 	}
 
@@ -89,26 +86,10 @@ export default class MyPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, {}, await this.loadData()) as MyPluginSettings;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
 	}
 
 	async saveSettings() {
 		await this.saveData(this.settings);
-	}
-}
-
-class SampleModal extends Modal {
-	constructor(app: App) {
-		super(app);
-	}
-
-	onOpen() {
-		let {contentEl} = this;
-		contentEl.setText('Woah!');
-	}
-
-	onClose() {
-		const {contentEl} = this;
-		contentEl.empty();
 	}
 }
