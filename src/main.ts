@@ -14,7 +14,7 @@ export default class MyPlugin extends Plugin {
 		// This adds a simple command that can be triggered anywhere
 		this.addCommand({
 			id: 'publish-current-page',
-			name: 'Publish Current Page',
+			name: 'Publish current page',
 			callback: async () => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (!activeFile) {
@@ -34,7 +34,7 @@ export default class MyPlugin extends Plugin {
 
 				const pat = this.settings.gitPAT;
 				const text = await this.app.vault.read(activeFile);
-				await publishSingleFile(activeFile, text, this.settings, pat, postType);
+				await publishSingleFile(this.app, activeFile, text, this.settings, pat, postType);
 			}
 		});
 

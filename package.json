@@ -27,6 +27,7 @@
 		"@octokit/core": "^7.0.6",
 		"@octokit/plugin-create-or-update-text-file": "^6.0.3",
 		"obsidian": "latest",
-		"octokit": "^5.0.5"
+		"octokit": "^5.0.5",
+		"octokit-commit-multiple-files": "^6.0.3"
 	}
 }
