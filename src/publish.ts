@@ -175,7 +175,7 @@ async function githubDeleteFiles(paths: string[], settings: MyPluginSettings, PA
 	const octokit = new MyOctokit({ auth: PAT });
 
 	// Delete all files in a single atomic commit
-	const res = await octokit.createOrUpdateFiles({
+	await octokit.createOrUpdateFiles({
 		owner: settings.owner,
 		repo: settings.repo,
 		branch: "main",
@@ -186,8 +186,6 @@ async function githubDeleteFiles(paths: string[], settings: MyPluginSettings, PA
 			ignoreDeletionFailures: false,
 		}]
 	});
-
-	console.log(`Deleted ${paths.length} file(s) in commit:`, res.data.commit.sha);
 }
 
 
