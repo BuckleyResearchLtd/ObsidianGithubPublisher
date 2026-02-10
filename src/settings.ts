@@ -1,4 +1,4 @@
-import {App, PluginSettingTab, SecretComponent, Setting} from "obsidian";
+import {App, PluginSettingTab, Setting} from "obsidian";
 import MyPlugin from "./main";
 
 export interface MyPluginSettings {

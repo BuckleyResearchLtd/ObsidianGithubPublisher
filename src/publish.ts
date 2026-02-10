@@ -6,6 +6,57 @@ import { CreateOrUpdateFiles } from "octokit-commit-multiple-files";
 const MyOctokit = Octokit.plugin(CreateOrUpdateFiles);
 // https://github.com/octokit/plugin-create-or-update-text-file.js/
 
+function splitFrontmatter(text: string): { frontmatter: string; content: string; hasFrontmatter: boolean } {
+	const fmRegex = /^---\n([\s\S]*?)\n---\n([\s\S]*)$/;
+	const match = text.match(fmRegex);
+	if (match && match[1] !== undefined && match[2] !== undefined) {
+		return { frontmatter: match[1], content: match[2], hasFrontmatter: true };
+	}
+	return { frontmatter: '', content: text, hasFrontmatter: false };
+}
+
+function getImagesFromFrontmatter(frontmatter: string): string[] {
+	const wikilinkRegex = /!?\[\[([^\]|]+)(\|([^\]]+))?\]\]/g;
+	const images: string[] = [];
+	let match;
+	while ((match = wikilinkRegex.exec(frontmatter)) !== null) {
+		if (match[1]) {
+			const linkPath = match[1].trim();
+			if (/\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(linkPath)) {
+				images.push(linkPath);
+			}
+		}
+	}
+	return images;
+}
+
+function transformFrontmatterImageLinks(app: App, frontmatter: string, sourcePath: string): string {
+	const wikilinkRegex = /!?\[\[([^\]|]+)(\|([^\]]+))?\]\]/g;
+
+	return frontmatter.replace(wikilinkRegex, (match, linkPath, _, displayText) => {
+		try {
+			const imageFile = app.metadataCache.getFirstLinkpathDest(linkPath.trim(), sourcePath);
+
+			if (!imageFile) {
+				return match;
+			}
+
+			if (!/\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(imageFile.name)) {
+				return match;
+			}
+
+			const sanitizedFilename = imageFile.name.replace(/\s+/g, '-');
+			const githubImagePath = `../../assets/${sanitizedFilename}`;
+
+			return githubImagePath;
+
+		} catch (error) {
+			console.warn(`Failed to transform frontmatter image link: ${linkPath}`, error);
+			return match;
+		}
+	});
+}
+
 function transformImageLinks(app: App, content: string, sourcePath: string): string {
 	// Regex to match image wikilinks: ![[path/to/image.png]] or ![[image.png|caption]]
 	// Captures: full match, link path, optional display text
@@ -47,15 +98,37 @@ function transformImageLinks(app: App, content: string, sourcePath: string): str
 
 export async function publishSingleFile(app: App, file: TFile, text: string, settings: MyPluginSettings, PAT: string, postType: string) {
 	const path = `src/content/${postType}/${file.name}`;
-	const commitMsg = `obsidian: create or update ${path} at ${new Date()}`;
+	const commitMsg = `obsidian: create or update ${path} at ${new Date().toISOString()}`;
 
-	// Transform image wikilinks to standard markdown
-	const transformedText = transformImageLinks(app, text, file.path);
+	// Split frontmatter and content
+	const { frontmatter, content, hasFrontmatter } = splitFrontmatter(text);
 
-	const imageLinks = getImagesFromFile(app, file);
-	const images = await Promise.all(imageLinks.map(link => resolveImage(app, link, file.path)));
+	// Transform frontmatter image links to plain paths (no markdown syntax)
+	const transformedFrontmatter = hasFrontmatter
+		? transformFrontmatterImageLinks(app, frontmatter, file.path)
+		: '';
 
-	// Use transformed text instead of original
+	// Transform content image wikilinks to standard markdown
+	const transformedContent = transformImageLinks(app, content, file.path);
+
+	// Recombine
+	const transformedText = hasFrontmatter
+		? `---\n${transformedFrontmatter}\n---\n${transformedContent}`
+		: transformedContent;
+
+	// Get images from content (existing method)
+	const imageLinksFromContent = getImagesFromFile(app, file);
+
+	// Get images from frontmatter
+	const imageLinksFromFrontmatter = hasFrontmatter
+		? getImagesFromFrontmatter(frontmatter)
+		: [];
+
+	// Combine and deduplicate
+	const allImageLinks = [...new Set([...imageLinksFromContent, ...imageLinksFromFrontmatter])];
+
+	const images = await Promise.all(allImageLinks.map(link => resolveImage(app, link, file.path)));
+
 	await githubPostFile(transformedText, path, settings, PAT, commitMsg, images);
 }
 
@@ -78,9 +151,9 @@ async function resolveImage(app: App, link: string, sourcePath: string): Promise
 	return { path: `src/assets/${sanitizedFilename}`, base64: btoa(binary) };
 }
 
-async function githubPostFile(text: string | null, path: string, settings: MyPluginSettings, PAT: string, commitMsg: string, images: { path: string; base64: string }[]) {
+async function githubPostFile(text: string, path: string, settings: MyPluginSettings, PAT: string, commitMsg: string, images: { path: string; base64: string }[]) {
 	const octokit = new MyOctokit({ auth: PAT });
-	const files: Record<string, string | null> = { [path]: text };
+	const files: Record<string, string> = { [path]: text };
 	for (const image of images) {
 		files[image.path] = image.base64;
 	}
@@ -98,20 +171,77 @@ async function githubPostFile(text: string | null, path: string, settings: MyPlu
 	//todo give feedback
 }
 
-function getSHAOrNone(octokit: Octokit, path: string, owner: string, repo: string) {
-	return octokit.rest.repos.getContent({ owner, repo, path })
-		.then((res: any) => res?.data?.sha)
-		.catch((err: any) => {
-			console.log(err);
-			return null;
-		});
+async function githubDeleteFiles(paths: string[], settings: MyPluginSettings, PAT: string, commitMsg: string) {
+	const octokit = new MyOctokit({ auth: PAT });
+
+	// Delete all files in a single atomic commit
+	const res = await octokit.createOrUpdateFiles({
+		owner: settings.owner,
+		repo: settings.repo,
+		branch: "main",
+		createBranch: false,
+		changes: [{
+			message: commitMsg,
+			filesToDelete: paths,
+			ignoreDeletionFailures: false,
+		}]
+	});
+
+	console.log(`Deleted ${paths.length} file(s) in commit:`, res.data.commit.sha);
 }
 
 
-export async function unpublishSingleFile(file: TFile, text: string, settings: MyPluginSettings, PAT: string, postType: string) {
+async function getUnusedImages(app: App, imagePaths: string[], excludeFile: TFile): Promise<string[]> {
+	// Get all published files except the one being unpublished
+	const allFiles = app.vault.getMarkdownFiles();
+	const publishedFiles = allFiles.filter(f => {
+		if (f.path === excludeFile.path) return false;
+		const cache = app.metadataCache.getFileCache(f);
+		const fm = cache?.frontmatter;
+		return fm && fm["pb-publish"] === true;
+	});
+
+	// Get all image links from all published files
+	const allImagePaths = new Set<string>();
+	for (const file of publishedFiles) {
+		const links = getImagesFromFile(app, file);
+		for (const link of links) {
+			const imageFile = app.metadataCache.getFirstLinkpathDest(link, file.path);
+			if (imageFile) {
+				// Sanitize the filename to match what's in GitHub
+				const sanitizedFilename = imageFile.name.replace(/\s+/g, '-');
+				allImagePaths.add(`src/assets/${sanitizedFilename}`);
+			}
+		}
+	}
+
+	// Filter images to only those not used elsewhere
+	return imagePaths.filter(imgPath => !allImagePaths.has(imgPath));
+}
+
+export async function unpublishSingleFile(app: App, file: TFile, settings: MyPluginSettings, PAT: string, postType: string) {
 	const path = `src/content/${postType}/${file.name}`;
-	const commitMsg = `obsidian: deleted ${path} at ${new Date()}`;
-	await githubPostFile(null, path, settings, PAT, commitMsg, []);
+
+	// Get images from the file being unpublished
+	const imageLinks = getImagesFromFile(app, file);
+	const imagePaths = await Promise.all(
+		imageLinks.map(async link => {
+			const imageFile = app.metadataCache.getFirstLinkpathDest(link, file.path);
+			if (!imageFile) return null;
+			const sanitizedFilename = imageFile.name.replace(/\s+/g, '-');
+			return `src/assets/${sanitizedFilename}`;
+		})
+	);
+	const validImagePaths = imagePaths.filter((p): p is string => p !== null);
+
+	// Find images that aren't used in other published files
+	const imagesToDelete = await getUnusedImages(app, validImagePaths, file);
+
+	// Collect all paths to delete (markdown file + unused images)
+	const allPathsToDelete = [path, ...imagesToDelete];
+
+	const commitMsg = `obsidian: deleted ${path}${imagesToDelete.length > 0 ? ` and ${imagesToDelete.length} unused image(s)` : ''} at ${new Date().toISOString()}`;
+	await githubDeleteFiles(allPathsToDelete, settings, PAT, commitMsg);
 }
 
 

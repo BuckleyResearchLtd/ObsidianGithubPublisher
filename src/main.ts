@@ -1,6 +1,6 @@
 import {App, Editor, MarkdownView, Modal, Notice, Plugin, TFile} from 'obsidian';
 import { MyPluginSettings, SampleSettingTab} from "./settings";
-import { publishSingleFile } from './publish';
+import { publishSingleFile, unpublishSingleFile } from './publish';
 
 // Remember to rename these classes and interfaces!
 
@@ -42,14 +42,24 @@ export default class MyPlugin extends Plugin {
 			id: 'unpublish-current-page',
 			name: 'Unpublish Current Page',
 			callback: async () => {
-				const activeFile = this.app.workspace.getActiveFile();		
+				const activeFile = this.app.workspace.getActiveFile();
+				if (!activeFile) {
+					return;
+				}
+				let postType;
 				await this.app.fileManager.processFrontMatter(
-					activeFile as TFile,
+					activeFile,
 					(frontmatter) => {
-						frontmatter["pb-publish"] = False;
+						frontmatter["pb-publish"] = false;
+						postType = frontmatter["pb-type"];
 					},
 				);
-				unpublishSingleFile(activeFile);
+				if (!postType) {
+					return;
+				}
+
+				const pat = this.settings.gitPAT;
+				await unpublishSingleFile(this.app, activeFile, this.settings, pat, postType);
 			}
 		});
 
@@ -57,7 +67,8 @@ export default class MyPlugin extends Plugin {
 			id: 'publish-all',
 			name: 'Publish All',
 			callback: async () => {
-				publishAll(this.app);
+				// publishAll(this.app);
+				new Notice('Publish All is not yet implemented');
 			}
 		});
 		// This adds an editor command that can perform some operation on the current editor instance
@@ -78,7 +89,7 @@ export default class MyPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, {}, await this.loadData() as Partial<MyPluginSettings>);
+		this.settings = Object.assign({}, {}, await this.loadData()) as MyPluginSettings;
 	}
 
 	async saveSettings() {
