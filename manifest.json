@@ -3,7 +3,7 @@
 	"name": "GitHub Publisher",
 	"version": "1.0.0",
 	"minAppVersion": "0.15.0",
-	"description": "Publish markdown notes and images to a GitHub repo",
+	"description": "Publish markdown notes and images to a GitHub repo.",
 	"author": "Joseph Buckley",
 	"authorUrl": "https://github.com/BuckleyResearchLtd",
 	"isDesktopOnly": false
