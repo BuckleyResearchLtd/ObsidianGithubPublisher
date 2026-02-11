@@ -1,6 +1,6 @@
 import { App, Notice, TFile } from "obsidian";
 import { GitHubPublisherSettings } from "settings";
-import { Octokit } from "@octokit/core";
+import { Octokit } from "@octokit/rest";
 import { CreateOrUpdateFiles } from "octokit-commit-multiple-files";
 
 const MyOctokit = Octokit.plugin(CreateOrUpdateFiles);
@@ -245,7 +245,6 @@ async function githubPostFile(
 	for (const image of images) {
 		files[image.path] = image.base64;
 	}
-
 	await octokit.createOrUpdateFiles({
 		owner: settings.owner,
 		repo: settings.repo,
@@ -283,12 +282,12 @@ async function githubDeleteFiles(
 	});
 }
 
-async function getUnusedImages(
+function getUnusedImages(
 	app: App,
 	imagePaths: string[],
 	excludeFile: TFile,
 	settings: GitHubPublisherSettings,
-): Promise<string[]> {
+): string[] {
 	const allFiles = app.vault.getMarkdownFiles();
 	const publishedFiles = allFiles.filter((f) => {
 		if (f.path === excludeFile.path) return false;
@@ -331,7 +330,7 @@ export async function unpublishSingleFile(
 
 		const imageLinks = getImagesFromFile(app, file);
 		const imagePaths = await Promise.all(
-			imageLinks.map(async (link) => {
+			imageLinks.map(link => {
 				const imageFile = app.metadataCache.getFirstLinkpathDest(
 					link,
 					file.path,
@@ -345,7 +344,7 @@ export async function unpublishSingleFile(
 			(p): p is string => p !== null,
 		);
 
-		const imagesToDelete = await getUnusedImages(
+		const imagesToDelete = getUnusedImages(
 			app,
 			validImagePaths,
 			file,

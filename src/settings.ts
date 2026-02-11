@@ -60,8 +60,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-		// eslint-disable-next-line obsidianmd/ui/sentence-case 
-			.setName('GitHub PAT')
+			.setName('GitHub pat')
 			.setDesc('Personal access token with write permissions')
 			.addText(text => text
 				.setValue(this.plugin.settings.gitPAT)
@@ -74,8 +73,6 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Branch')
 			.setDesc('Git branch to commit to')
 			.addText(text => text
-		// eslint-disable-next-line obsidianmd/ui/sentence-case 
-				.setPlaceholder('main')
 				.setValue(this.plugin.settings.branch)
 				.onChange(async (value) => {
 					this.plugin.settings.branch = value;
@@ -86,8 +83,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Content directory')
 			.setDesc('Base content directory in your repository')
 			.addText(text => text
-				// eslint-disable-next-line obsidianmd/ui/sentence-case 
-				.setPlaceholder('src/content/')
+				.setPlaceholder('./src/content/')
 				.setValue(this.plugin.settings.contentDir)
 				.onChange(async (value) => {
 					this.plugin.settings.contentDir = value;
@@ -98,8 +94,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Assets directory')
 			.setDesc('Directory where images are stored in your repository')
 			.addText(text => text
-				// eslint-disable-next-line obsidianmd/ui/sentence-case 
-				.setPlaceholder('src/assets/')
+				.setPlaceholder('./src/assets/')
 				.setValue(this.plugin.settings.assetsDir)
 				.onChange(async (value) => {
 					this.plugin.settings.assetsDir = value;
