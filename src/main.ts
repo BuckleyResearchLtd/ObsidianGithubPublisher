@@ -34,7 +34,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 		this.addRibbonIcon(
 			"megaphone-off",
 			"Unpublish current page",
-			async () => await this.publishCurrentPage(),
+			async () => await this.unpublishCurrentPage(),
 		);
 
 		this.addSettingTab(new GitHubPublisherSettingTab(this.app, this));
