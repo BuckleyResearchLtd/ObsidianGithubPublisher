@@ -60,6 +60,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
+		// eslint-disable-next-line obsidianmd/ui/sentence-case 
 			.setName('GitHub PAT')
 			.setDesc('Personal access token with write permissions')
 			.addText(text => text
@@ -73,6 +74,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Branch')
 			.setDesc('Git branch to commit to')
 			.addText(text => text
+		// eslint-disable-next-line obsidianmd/ui/sentence-case 
 				.setPlaceholder('main')
 				.setValue(this.plugin.settings.branch)
 				.onChange(async (value) => {
@@ -84,6 +86,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Content directory')
 			.setDesc('Base content directory in your repository')
 			.addText(text => text
+				// eslint-disable-next-line obsidianmd/ui/sentence-case 
 				.setPlaceholder('src/content/')
 				.setValue(this.plugin.settings.contentDir)
 				.onChange(async (value) => {
@@ -95,6 +98,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 			.setName('Assets directory')
 			.setDesc('Directory where images are stored in your repository')
 			.addText(text => text
+				// eslint-disable-next-line obsidianmd/ui/sentence-case 
 				.setPlaceholder('src/assets/')
 				.setValue(this.plugin.settings.assetsDir)
 				.onChange(async (value) => {
@@ -104,7 +108,7 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 
 		new Setting(containerEl)
 			.setName('Assets relative path')
-			.setDesc('Relative path from content files to assets (used in markdown image links)')
+			.setDesc('Relative path from content files to assets (used in Markdown image links)')
 			.addText(text => text
 				.setPlaceholder('../../assets/')
 				.setValue(this.plugin.settings.assetsRelativePath)
