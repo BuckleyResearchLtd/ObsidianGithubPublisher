@@ -1,5 +1,5 @@
-import {App, Editor, MarkdownView, Modal, Notice, Plugin, TFile} from 'obsidian';
-import { DEFAULT_SETTINGS, GitHubPublisherSettings, GitHubPublisherSettingTab} from "./settings";
+import { Plugin } from 'obsidian';
+import { DEFAULT_SETTINGS, GitHubPublisherSettings, GitHubPublisherSettingTab } from "./settings";
 import { publishSingleFile, unpublishSingleFile } from './publish';
 
 export default class GitHubPublisherPlugin extends Plugin {
@@ -21,7 +21,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 				let postType;
 				await this.app.fileManager.processFrontMatter(
 					activeFile,
-					(frontmatter) => {
+					(frontmatter: Record<string, string | boolean>) => {
 						frontmatter["pb-publish"] = true;
 						postType = frontmatter["pb-type"];
 					},
@@ -38,7 +38,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 
 		this.addCommand({
 			id: 'unpublish-current-page',
-			name: 'Unpublish Current Page',
+			name: 'Unpublish current page',
 			callback: async () => {
 				const activeFile = this.app.workspace.getActiveFile();
 				if (!activeFile) {
@@ -47,7 +47,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 				let postType;
 				await this.app.fileManager.processFrontMatter(
 					activeFile,
-					(frontmatter) => {
+					(frontmatter: Record<string, string | boolean>) => {
 						frontmatter["pb-publish"] = false;
 						postType = frontmatter["pb-type"];
 					},
@@ -61,23 +61,6 @@ export default class GitHubPublisherPlugin extends Plugin {
 			}
 		});
 
-		this.addCommand({
-			id: 'publish-all',
-			name: 'Publish All',
-			callback: async () => {
-				// publishAll(this.app);
-				new Notice('Publish All is not yet implemented');
-			}
-		});
-		// This adds an editor command that can perform some operation on the current editor instance
-		this.addCommand({
-			id: 'replace-selected',
-			name: 'Replace selected content',
-			editorCallback: (editor: Editor, view: MarkdownView) => {
-				editor.replaceSelection('Sample editor command');
-			}
-		});
-
 		this.addSettingTab(new GitHubPublisherSettingTab(this.app, this));
 
 	}
@@ -86,7 +69,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData()) as GitHubPublisherSettings;
 	}
 
 	async saveSettings() {
