@@ -165,7 +165,10 @@ function transformWikiLinks(
 				}
 
 				const sanitizedFilename = sanitizeFilename(linkedFile.name);
-				const filenameWithoutExtension = sanitizedFilename.replace(/\.md$/i, "");
+				const filenameWithoutExtension = sanitizedFilename.replace(
+					/\.md$/i,
+					"",
+				);
 				const targetPath = settings.usePostTypeSubdirectories
 					? `${postType}/${filenameWithoutExtension}`
 					: `${filenameWithoutExtension}`;
@@ -402,17 +405,15 @@ export async function unpublishSingleFile(
 			: `${settings.contentDir}${sanitizedFilename}`;
 
 		const imageLinks = getImagesFromFile(app, file);
-		const imagePaths = await Promise.all(
-			imageLinks.map(link => {
-				const imageFile = app.metadataCache.getFirstLinkpathDest(
-					link,
-					file.path,
-				);
-				if (!imageFile) return null;
-				const sanitizedFilename = sanitizeFilename(imageFile.name);
-				return `${settings.assetsDir}${sanitizedFilename}`;
-			}),
-		);
+		const imagePaths = imageLinks.map((link) => {
+			const imageFile = app.metadataCache.getFirstLinkpathDest(
+				link,
+				file.path,
+			);
+			if (!imageFile) return null;
+			const sanitizedFilename = sanitizeFilename(imageFile.name);
+			return `${settings.assetsDir}${sanitizedFilename}`;
+		});
 		const validImagePaths = imagePaths.filter(
 			(p): p is string => p !== null,
 		);
@@ -463,4 +464,3 @@ function getFilesToPublish(app: App): [TFile[], TFile[]] {
 
 	return [toPublish, toUnpublish];
 }
-
