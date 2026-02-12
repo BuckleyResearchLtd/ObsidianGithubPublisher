@@ -23,6 +23,13 @@ function splitFrontmatter(text: string): {
 	return { frontmatter: "", content: text, hasFrontmatter: false };
 }
 
+function sanitizeFilename(filename: string): string {
+	return filename
+		.replace(/\s+/g, "-")
+		.replace(/[^\w\-\.]/g, "")
+		.toLowerCase();
+}
+
 function getImagesFromFrontmatter(frontmatter: string): string[] {
 	const wikilinkRegex = /!?\[\[([^\]|]+)(\|([^\]]+))?\]\]/g;
 	const images: string[] = [];
@@ -63,7 +70,7 @@ function transformFrontmatterImageLinks(
 					return match;
 				}
 
-				const sanitizedFilename = imageFile.name.replace(/\s+/g, "-");
+				const sanitizedFilename = sanitizeFilename(imageFile.name);
 				const githubImagePath = `${settings.assetsRelativePath}${sanitizedFilename}`;
 
 				return githubImagePath;
@@ -103,7 +110,7 @@ function transformImageLinks(
 					return match;
 				}
 
-				const sanitizedFilename = imageFile.name.replace(/\s+/g, "-");
+				const sanitizedFilename = sanitizeFilename(imageFile.name);
 				const githubImagePath = `${settings.assetsRelativePath}${sanitizedFilename}`;
 
 				const altText = displayText?.trim() || "";
@@ -120,6 +127,63 @@ function transformImageLinks(
 	);
 }
 
+function transformWikiLinks(
+	app: App,
+	content: string,
+	sourcePath: string,
+	settings: GitHubPublisherSettings,
+): string {
+	const wikilinkRegex = /(?<!!)\[\[([^\]|]+)(\|([^\]]+))?\]\]/g;
+
+	return content.replace(
+		wikilinkRegex,
+		(match, linkPath: string, _, displayText: string) => {
+			try {
+				const linkedFile = app.metadataCache.getFirstLinkpathDest(
+					linkPath.trim(),
+					sourcePath,
+				);
+
+				if (!linkedFile) {
+					return displayText?.trim() || linkPath.trim();
+				}
+
+				if (/\.(png|jpe?g|gif|bmp|webp|svg)$/i.test(linkedFile.name)) {
+					return match;
+				}
+
+				const cache = app.metadataCache.getFileCache(linkedFile);
+				const frontmatter = cache?.frontmatter;
+
+				if (!frontmatter || frontmatter["pb-publish"] !== true) {
+					return displayText?.trim() || linkPath.trim();
+				}
+
+				const postType = frontmatter["pb-type"];
+				if (!postType) {
+					return displayText?.trim() || linkPath.trim();
+				}
+
+				const sanitizedFilename = sanitizeFilename(linkedFile.name);
+				const filenameWithoutExtension = sanitizedFilename.replace(/\.md$/i, "");
+				const targetPath = settings.usePostTypeSubdirectories
+					? `${postType}/${filenameWithoutExtension}`
+					: `${filenameWithoutExtension}`;
+
+				const linkText = displayText?.trim() || linkPath.trim();
+
+				return `[${linkText}](/${targetPath})`;
+			} catch (error) {
+				console.warn(
+					`Failed to transform wiki link: ${linkPath}`,
+					error,
+				);
+				return displayText?.trim() || linkPath.trim();
+			}
+		},
+	);
+}
+
 export async function publishSingleFile(
 	app: App,
 	file: TFile,
@@ -131,9 +195,10 @@ export async function publishSingleFile(
 	new Notice(`Publishing ${file.name}...`);
 
 	try {
+		const sanitizedFilename = sanitizeFilename(file.name);
 		const path = settings.usePostTypeSubdirectories
-			? `${settings.contentDir}${postType}/${file.name}`
-			: `${settings.contentDir}${file.name}`;
+			? `${settings.contentDir}${postType}/${sanitizedFilename}`
+			: `${settings.contentDir}${sanitizedFilename}`;
 		const commitMsg = `obsidian: create or update ${path} at ${new Date().toISOString()}`;
 
 		const { frontmatter, content, hasFrontmatter } = splitFrontmatter(text);
@@ -147,9 +212,16 @@ export async function publishSingleFile(
 			)
 			: "";
 
-		const transformedContent = transformImageLinks(
+		let transformedContent = transformImageLinks(
 			app,
 			content,
+			file.path,
+			settings,
+		);
+
+		transformedContent = transformWikiLinks(
+			app,
+			transformedContent,
 			file.path,
 			settings,
 		);
@@ -225,7 +297,7 @@ async function resolveImage(
 	for (let i = 0; i < bytes.byteLength; i++) {
 		binary += String.fromCharCode(bytes[i]!);
 	}
-	const sanitizedFilename = imageFile.name.replace(/\s+/g, "-");
+	const sanitizedFilename = sanitizeFilename(imageFile.name);
 	return {
 		path: `${settings.assetsDir}${sanitizedFilename}`,
 		base64: btoa(binary),
@@ -305,7 +377,7 @@ function getUnusedImages(
 				file.path,
 			);
 			if (imageFile) {
-				const sanitizedFilename = imageFile.name.replace(/\s+/g, "-");
+				const sanitizedFilename = sanitizeFilename(imageFile.name);
 				allImagePaths.add(`${settings.assetsDir}${sanitizedFilename}`);
 			}
 		}
@@ -324,9 +396,10 @@ export async function unpublishSingleFile(
 	new Notice(`Unpublishing ${file.name}...`);
 
 	try {
+		const sanitizedFilename = sanitizeFilename(file.name);
 		const path = settings.usePostTypeSubdirectories
-			? `${settings.contentDir}${postType}/${file.name}`
-			: `${settings.contentDir}${file.name}`;
+			? `${settings.contentDir}${postType}/${sanitizedFilename}`
+			: `${settings.contentDir}${sanitizedFilename}`;
 
 		const imageLinks = getImagesFromFile(app, file);
 		const imagePaths = await Promise.all(
@@ -336,7 +409,7 @@ export async function unpublishSingleFile(
 					file.path,
 				);
 				if (!imageFile) return null;
-				const sanitizedFilename = imageFile.name.replace(/\s+/g, "-");
+				const sanitizedFilename = sanitizeFilename(imageFile.name);
 				return `${settings.assetsDir}${sanitizedFilename}`;
 			}),
 		);
