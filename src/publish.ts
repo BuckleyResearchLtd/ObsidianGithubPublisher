@@ -26,7 +26,7 @@ function splitFrontmatter(text: string): {
 function sanitizeFilename(filename: string): string {
 	return filename
 		.replace(/\s+/g, "-")
-		.replace(/[^\w\-\.]/g, "")
+		.replace(/[^\w.-]/g, "")
 		.toLowerCase();
 }
 

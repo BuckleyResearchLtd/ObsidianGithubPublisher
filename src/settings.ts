@@ -10,6 +10,7 @@ export interface GitHubPublisherSettings {
 	assetsRelativePath: string;
 	branch: string;
 	usePostTypeSubdirectories: boolean;
+	autoPublish: boolean;
 }
 
 export const DEFAULT_SETTINGS: GitHubPublisherSettings = {
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: GitHubPublisherSettings = {
 	assetsRelativePath: '../../assets/',
 	branch: 'main',
 	usePostTypeSubdirectories: true,
+	autoPublish: false,
 };
 
 
@@ -119,6 +121,16 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 				.setValue(this.plugin.settings.usePostTypeSubdirectories)
 				.onChange(async (value) => {
 					this.plugin.settings.usePostTypeSubdirectories = value;
+					await this.plugin.saveSettings();
+				}));
+
+		new Setting(containerEl)
+			.setName('Auto-publish')
+			.setDesc('When on, the publish command will always publish the current file. When off, the publish command will only publish files that explicitly have pb-publish set to true in the frontmatter.')
+			.addToggle(toggle => toggle
+				.setValue(this.plugin.settings.autoPublish)
+				.onChange(async (value) => {
+					this.plugin.settings.autoPublish = value;
 					await this.plugin.saveSettings();
 				}));
 	}

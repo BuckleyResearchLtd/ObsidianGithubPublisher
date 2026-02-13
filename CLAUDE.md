@@ -45,3 +45,5 @@ src/
 - Plugin settings persisted via `this.loadData()` / `this.saveData()`.
 - Prefer sentence case for UI text. Use `→` arrow notation for navigation paths.
 - Indent with tabs (4-space width), LF line endings, UTF-8.
+- Never add comments to code.
+- Prefer early returns over if-else when reasonable.

@@ -1,4 +1,4 @@
-import { Plugin } from "obsidian";
+import { Notice, Plugin } from "obsidian";
 import {
 	DEFAULT_SETTINGS,
 	GitHubPublisherSettings,
@@ -48,14 +48,25 @@ export default class GitHubPublisherPlugin extends Plugin {
 			return;
 		}
 		let postType;
+		let shouldPublish = false;
 		await this.app.fileManager.processFrontMatter(
 			activeFile,
 			(frontmatter: Record<string, string | boolean>) => {
-				frontmatter["pb-publish"] = true;
+				if (this.settings.autoPublish) {
+					frontmatter["pb-publish"] = true;
+					shouldPublish = true;
+					postType = frontmatter["pb-type"];
+					return;
+				}
+				shouldPublish = frontmatter["pb-publish"] === true;
 				postType = frontmatter["pb-type"];
 			},
 		);
 		if (!postType) {
+			return;
+		}
+		if (!shouldPublish) {
+			new Notice("Not publishing: auto-publish is off and pb-publish is not set to true");
 			return;
 		}
 
