@@ -13,9 +13,13 @@ npm install          # Install dependencies
 npm run dev          # Watch mode (esbuild, auto-rebuild on change)
 npm run build        # Type-check (tsc --noEmit) then production bundle
 npm run lint         # ESLint (flat config, includes obsidianmd plugin)
+npm test             # Vitest (single run)
+npm run test:watch   # Vitest (watch mode)
 ```
 
-No automated tests exist. Manual testing: copy `main.js`, `manifest.json`, `styles.css` into a vault at `<Vault>/.obsidian/plugins/sample-plugin/`, reload Obsidian, enable the plugin.
+Tests live in `tests/`. `obsidian` ships no runtime JS, so it is aliased to `tests/mocks/obsidian.ts` in `vitest.config.mts`; `@octokit/rest` is mocked per-test. `tests/bundle.test.ts` builds `main.js` and asserts it references no Node-only globals — this is what keeps the plugin working on Obsidian mobile, which has no Node runtime.
+
+Manual testing: copy `main.js` and `manifest.json` into a vault at `<Vault>/.obsidian/plugins/github-publisher/`, reload Obsidian, enable the plugin.
 
 ## Architecture
 
@@ -23,12 +27,14 @@ No automated tests exist. Manual testing: copy `main.js`, `manifest.json`, `styl
 src/
   main.ts       Plugin lifecycle: onload/onunload, command registration, settings tab
   publish.ts    GitHub publishing logic via Octokit (publishSingleFile, unpublishSingleFile, image extraction)
-  settings.ts   MyPluginSettings interface (owner, repo, gitPAT) and settings tab UI
+  settings.ts   GitHubPublisherSettings interface and settings tab UI
 ```
 
-- **main.ts** registers four commands: `publish-current-page`, `unpublish-current-page`, `publish-all`, `replace-selected`. It uses frontmatter fields `pb-publish` and `pb-type` to control publishing.
-- **publish.ts** uses `octokit-commit-multiple-files` to batch-commit a note and its embedded images to a configurable GitHub repo.
-- **settings.ts** defines plugin settings and the settings tab with inputs for GitHub owner, repo name, and personal access token.
+- **main.ts** registers two commands, `publish-current-page` and `unpublish-current-page`, plus a ribbon icon for each. It uses frontmatter fields `pb-publish` and `pb-type` to control publishing.
+- **publish.ts** commits a note and its embedded images through the GitHub Git Data API (blob → tree → commit → ref) so each publish is one atomic commit. Markdown blobs are sent with `encoding: "utf-8"`, images with `encoding: "base64"`.
+- **settings.ts** defines plugin settings and the settings tab with inputs for GitHub owner, repo name, personal access token, branch, and content/asset paths.
+
+Nothing in `src/` may use Node-only globals (`Buffer`, `process`, `require`) — Obsidian mobile has no Node runtime. See the mobile note under Commands.
 
 ## Build Details
 

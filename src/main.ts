@@ -45,6 +45,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 	async publishCurrentPage() {
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
+			new Notice("No active file to publish");
 			return;
 		}
 		let postType;
@@ -63,6 +64,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 			},
 		);
 		if (!postType) {
+			new Notice("Not publishing: no pb-type set in frontmatter");
 			return;
 		}
 		if (!shouldPublish) {
@@ -85,6 +87,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 	async unpublishCurrentPage() {
 		const activeFile = this.app.workspace.getActiveFile();
 		if (!activeFile) {
+			new Notice("No active file to unpublish");
 			return;
 		}
 		let postType;
@@ -96,6 +99,7 @@ export default class GitHubPublisherPlugin extends Plugin {
 			},
 		);
 		if (!postType) {
+			new Notice("Not unpublishing: no pb-type set in frontmatter");
 			return;
 		}
 

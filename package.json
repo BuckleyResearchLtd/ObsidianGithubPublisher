@@ -1,11 +1,13 @@
 {
 	"name": "obsidian-github-publisher",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"description": "Publish markdown notes and images to GitHub repositories with content collection support",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {
 		"dev": "node esbuild.config.mjs",
+		"test": "vitest run",
+		"test:watch": "vitest",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"version": "node version-bump.mjs && git add manifest.json versions.json",
 		"lint": "eslint ."
@@ -14,20 +16,18 @@
 	"license": "0-BSD",
 	"devDependencies": {
 		"@eslint/js": "9.30.1",
-		"@types/node": "^16.11.6",
+		"@types/node": "^22.20.1",
 		"esbuild": "0.25.5",
 		"eslint-plugin-obsidianmd": "0.1.9",
 		"globals": "14.0.0",
 		"jiti": "2.6.1",
 		"tslib": "2.4.0",
 		"typescript": "^5.8.3",
-		"typescript-eslint": "8.35.1"
+		"typescript-eslint": "8.35.1",
+		"obsidian": "latest",
+		"vitest": "^3.2.7"
 	},
 	"dependencies": {
-		"@octokit/core": "^7.0.6",
-		"@octokit/plugin-create-or-update-text-file": "^6.0.3",
-		"obsidian": "latest",
-		"octokit": "^5.0.5",
-		"octokit-commit-multiple-files": "^6.0.3"
+		"@octokit/rest": "^22.0.1"
 	}
 }

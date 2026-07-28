@@ -62,14 +62,17 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 				}));
 
 		new Setting(containerEl)
-			.setName('GitHub pat')
-			.setDesc('Personal access token with write permissions')
-			.addText(text => text
-				.setValue(this.plugin.settings.gitPAT)
-				.onChange(async (value) => {
-					this.plugin.settings.gitPAT = value;
-					await this.plugin.saveSettings();
-				}));
+			.setName('GitHub personal access token')
+			.setDesc('Token with write permissions for the repository')
+			.addText(text => {
+				text.inputEl.type = 'password';
+				return text
+					.setValue(this.plugin.settings.gitPAT)
+					.onChange(async (value) => {
+						this.plugin.settings.gitPAT = value;
+						await this.plugin.saveSettings();
+					});
+			});
 
 		new Setting(containerEl)
 			.setName('Branch')

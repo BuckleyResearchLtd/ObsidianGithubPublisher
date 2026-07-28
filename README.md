@@ -20,7 +20,7 @@ Search for "GitHub Publisher" in the Obsidian community plugins browser. Install
 
 ### Manual Installation
 
-Copy `main.js`, `manifest.json`, and `styles.css` to your vault's plugin directory at `.obsidian/plugins/github-publisher/`.
+Copy `main.js` and `manifest.json` to your vault's plugin directory at `.obsidian/plugins/github-publisher/`.
 
 ## Configuration
 
@@ -30,7 +30,7 @@ The plugin requires a GitHub personal access token with repository write permiss
 
 - **GitHub Owner**: Repository owner username
 - **GitHub Repository**: Repository name
-- **GitHub PAT**: Personal access token with write access
+- **GitHub personal access token**: Token with write access to the repository
 - **Branch**: Target branch for commits (default: `main`)
 
 ### Path Settings
@@ -64,7 +64,7 @@ The plugin uploads the markdown file and any embedded images. It converts image 
 
 ### Unpublishing a Note
 
-Run the command "Unpublish Current Page" from the command palette.
+Run the command "Unpublish current page" from the command palette.
 
 The plugin deletes the markdown file from GitHub. It checks all other published notes for image usage. Images not used elsewhere are deleted. Shared images are preserved.
 
@@ -89,7 +89,7 @@ cover: ../../assets/hero-image.png
 ## Commands
 
 - **Publish current page**: Publishes the active note
-- **Unpublish Current Page**: Removes the active note from GitHub
+- **Unpublish current page**: Removes the active note from GitHub
 
 ## How It Works
 
@@ -99,8 +99,8 @@ When publishing, the plugin:
 1. Reads the frontmatter and content
 2. Resolves all image wikilinks to actual files
 3. Transforms wikilinks to relative paths or markdown syntax
-4. Converts images to base64
-5. Creates a single commit with the markdown file and all images
+4. Uploads each file as a git blob, markdown as UTF-8 and images as base64
+5. Creates a single commit containing the markdown file and all images
 
 When unpublishing, the plugin:
 1. Identifies the file to delete
@@ -110,7 +110,7 @@ When unpublishing, the plugin:
 
 ## Requirements
 
-- Obsidian v0.15.0 or higher
+- Obsidian v1.4.4 or higher
 - GitHub repository with write access
 - GitHub personal access token
 
@@ -138,6 +138,12 @@ Lint the code:
 
 ```bash
 npm run lint
+```
+
+Run the tests:
+
+```bash
+npm test
 ```
 
 ## License

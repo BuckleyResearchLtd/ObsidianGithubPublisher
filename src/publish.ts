@@ -1,10 +1,19 @@
 import { App, Notice, TFile } from "obsidian";
 import { GitHubPublisherSettings } from "settings";
 import { Octokit } from "@octokit/rest";
-import { CreateOrUpdateFiles } from "octokit-commit-multiple-files";
 
-const MyOctokit = Octokit.plugin(CreateOrUpdateFiles);
-// https://github.com/octokit/plugin-create-or-update-text-file.js/
+type CommitFile = {
+	path: string;
+	content: string;
+	encoding: "utf-8" | "base64";
+};
+
+type TreeItem = {
+	path: string;
+	mode: "100644";
+	type: "blob";
+	sha: string | null;
+};
 
 function splitFrontmatter(text: string): {
 	frontmatter: string;
@@ -159,8 +168,8 @@ function transformWikiLinks(
 					return displayText?.trim() || linkPath.trim();
 				}
 
-				const postType = frontmatter["pb-type"];
-				if (!postType) {
+				const postType: unknown = frontmatter["pb-type"];
+				if (typeof postType !== "string" || !postType) {
 					return displayText?.trim() || linkPath.trim();
 				}
 
@@ -307,6 +316,142 @@ async function resolveImage(
 	};
 }
 
+function isNotFound(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"status" in error &&
+		(error as { status: number }).status === 404
+	);
+}
+
+async function getTreeBlobPaths(
+	octokit: Octokit,
+	settings: GitHubPublisherSettings,
+	treeSha: string,
+): Promise<Set<string> | null> {
+	const tree = await octokit.rest.git.getTree({
+		owner: settings.owner,
+		repo: settings.repo,
+		tree_sha: treeSha,
+		recursive: "true",
+	});
+
+	if (tree.data.truncated) {
+		return null;
+	}
+
+	const paths = tree.data.tree
+		.filter((entry) => entry.type === "blob")
+		.map((entry) => entry.path);
+
+	return new Set(paths);
+}
+
+async function commitChanges(
+	settings: GitHubPublisherSettings,
+	PAT: string,
+	commitMsg: string,
+	files: CommitFile[],
+	pathsToDelete: string[],
+) {
+	if (files.length === 0 && pathsToDelete.length === 0) {
+		return;
+	}
+
+	const octokit = new Octokit({ auth: PAT });
+	const owner = settings.owner;
+	const repo = settings.repo;
+	const ref = `heads/${settings.branch}`;
+
+	let headSha: string;
+	try {
+		const head = await octokit.rest.git.getRef({ owner, repo, ref });
+		headSha = head.data.object.sha;
+	} catch (error: unknown) {
+		if (isNotFound(error)) {
+			throw new Error(
+				`Branch '${settings.branch}' does not exist in ${owner}/${repo}`,
+			);
+		}
+		throw error;
+	}
+
+	const baseCommit = await octokit.rest.git.getCommit({
+		owner,
+		repo,
+		commit_sha: headSha,
+	});
+	const baseTreeSha = baseCommit.data.tree.sha;
+
+	if (pathsToDelete.length > 0) {
+		const existingPaths = await getTreeBlobPaths(
+			octokit,
+			settings,
+			baseTreeSha,
+		);
+		if (existingPaths) {
+			const missing = pathsToDelete.find(
+				(path) => !existingPaths.has(path),
+			);
+			if (missing) {
+				throw new Error(
+					`The file ${missing} could not be found in the repo`,
+				);
+			}
+		}
+	}
+
+	const blobs = await Promise.all(
+		files.map(async (file) => {
+			const blob = await octokit.rest.git.createBlob({
+				owner,
+				repo,
+				content: file.content,
+				encoding: file.encoding,
+			});
+			return { path: file.path, sha: blob.data.sha };
+		}),
+	);
+
+	const tree: TreeItem[] = [
+		...blobs.map((blob) => ({
+			path: blob.path,
+			mode: "100644" as const,
+			type: "blob" as const,
+			sha: blob.sha,
+		})),
+		...pathsToDelete.map((path) => ({
+			path,
+			mode: "100644" as const,
+			type: "blob" as const,
+			sha: null,
+		})),
+	];
+
+	const newTree = await octokit.rest.git.createTree({
+		owner,
+		repo,
+		base_tree: baseTreeSha,
+		tree,
+	});
+
+	const commit = await octokit.rest.git.createCommit({
+		owner,
+		repo,
+		message: commitMsg,
+		tree: newTree.data.sha,
+		parents: [headSha],
+	});
+
+	await octokit.rest.git.updateRef({
+		owner,
+		repo,
+		ref,
+		sha: commit.data.sha,
+	});
+}
+
 async function githubPostFile(
 	text: string,
 	path: string,
@@ -315,23 +460,16 @@ async function githubPostFile(
 	commitMsg: string,
 	images: { path: string; base64: string }[],
 ) {
-	const octokit = new MyOctokit({ auth: PAT });
-	const files: Record<string, string> = { [path]: text };
-	for (const image of images) {
-		files[image.path] = image.base64;
-	}
-	await octokit.createOrUpdateFiles({
-		owner: settings.owner,
-		repo: settings.repo,
-		branch: settings.branch,
-		createBranch: false,
-		changes: [
-			{
-				message: commitMsg,
-				files: files,
-			},
-		],
-	});
+	const files: CommitFile[] = [
+		{ path, content: text, encoding: "utf-8" },
+		...images.map((image) => ({
+			path: image.path,
+			content: image.base64,
+			encoding: "base64" as const,
+		})),
+	];
+
+	await commitChanges(settings, PAT, commitMsg, files, []);
 }
 
 async function githubDeleteFiles(
@@ -340,21 +478,7 @@ async function githubDeleteFiles(
 	PAT: string,
 	commitMsg: string,
 ) {
-	const octokit = new MyOctokit({ auth: PAT });
-
-	await octokit.createOrUpdateFiles({
-		owner: settings.owner,
-		repo: settings.repo,
-		branch: settings.branch,
-		createBranch: false,
-		changes: [
-			{
-				message: commitMsg,
-				filesToDelete: paths,
-				ignoreDeletionFailures: false,
-			},
-		],
-	});
+	await commitChanges(settings, PAT, commitMsg, [], paths);
 }
 
 function getUnusedImages(
@@ -445,22 +569,4 @@ export async function unpublishSingleFile(
 		new Notice(`Failed to unpublish ${file.name}: ${errorMsg}`);
 		throw error;
 	}
-}
-
-function getFilesToPublish(app: App): [TFile[], TFile[]] {
-	const files = app.vault.getMarkdownFiles(); // all .md files in vault[web:51]
-
-	const toPublish = files.filter((file) => {
-		const cache = app.metadataCache.getFileCache(file);
-		const fm = cache?.frontmatter;
-		return fm && fm["pb-publish"] === true;
-	});
-
-	const toUnpublish = files.filter((file) => {
-		const cache = app.metadataCache.getFileCache(file);
-		const fm = cache?.frontmatter;
-		return fm && fm["pb-publish"] === true;
-	});
-
-	return [toPublish, toUnpublish];
 }
