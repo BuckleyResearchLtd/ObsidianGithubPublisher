@@ -14,13 +14,13 @@ Images are tracked across all published notes. When unpublishing a note, images 
 
 ## Installation
 
-### From Obsidian Community Plugins
+### BRAT
 
-Search for "GitHub Publisher" in the Obsidian community plugins browser. Install and enable the plugin.
+Install [BRAT](https://obsidian.md/plugins?id=obsidian42-brat), then add `BuckleyResearchLtd/ObsidianGithubPublisher` as a beta plugin. BRAT tracks new releases automatically.
 
 ### Manual Installation
 
-Copy `main.js` and `manifest.json` to your vault's plugin directory at `.obsidian/plugins/github-publisher/`.
+Download `main.js` and `manifest.json` from the [latest release](https://github.com/BuckleyResearchLtd/ObsidianGithubPublisher/releases/latest) and copy them to your vault's plugin directory at `.obsidian/plugins/github-publisher/`. Then reload Obsidian and enable the plugin.
 
 ## Configuration
 
