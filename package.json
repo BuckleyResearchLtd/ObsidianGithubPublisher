@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-github-publisher",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "Publish markdown notes and images to GitHub repositories with content collection support",
 	"main": "main.js",
 	"type": "module",

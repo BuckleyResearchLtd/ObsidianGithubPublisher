@@ -1,7 +1,7 @@
 {
 	"id": "github-publisher",
 	"name": "GitHub Publisher",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"minAppVersion": "1.4.4",
 	"description": "Publish markdown notes and images to a GitHub repo.",
 	"author": "Joseph Buckley",
