@@ -1,4 +1,4 @@
-import {App, PluginSettingTab, Setting} from "obsidian";
+import { App, PluginSettingTab, Setting, SettingDefinitionItem } from "obsidian";
 import GitHubPublisherPlugin from "./main";
 
 export interface GitHubPublisherSettings {
@@ -25,6 +25,93 @@ export const DEFAULT_SETTINGS: GitHubPublisherSettings = {
 	autoPublish: false,
 };
 
+type TextSettingKey =
+	| "owner"
+	| "repo"
+	| "gitPAT"
+	| "branch"
+	| "contentDir"
+	| "assetsDir"
+	| "assetsRelativePath";
+
+type ToggleSettingKey = "usePostTypeSubdirectories" | "autoPublish";
+
+type SettingField =
+	| {
+		type: "text" | "password";
+		key: TextSettingKey;
+		name: string;
+		desc: string;
+		placeholder?: string;
+	}
+	| {
+		type: "toggle";
+		key: ToggleSettingKey;
+		name: string;
+		desc: string;
+	};
+
+export const SETTING_FIELDS: SettingField[] = [
+	{
+		type: "text",
+		key: "owner",
+		name: "GitHub owner",
+		desc: "Owner of the GitHub repository",
+		placeholder: "e.g., owner in github.com/owner/repo",
+	},
+	{
+		type: "text",
+		key: "repo",
+		name: "GitHub repository",
+		desc: "Repository name",
+		placeholder: "e.g., repo in github.com/owner/repo",
+	},
+	{
+		type: "password",
+		key: "gitPAT",
+		name: "GitHub personal access token",
+		desc: "Token with write permissions for the repository",
+	},
+	{
+		type: "text",
+		key: "branch",
+		name: "Branch",
+		desc: "Git branch to commit to",
+	},
+	{
+		type: "text",
+		key: "contentDir",
+		name: "Content directory",
+		desc: "Base content directory in your repository",
+		placeholder: "./src/content/",
+	},
+	{
+		type: "text",
+		key: "assetsDir",
+		name: "Assets directory",
+		desc: "Directory where images are stored in your repository",
+		placeholder: "./src/assets/",
+	},
+	{
+		type: "text",
+		key: "assetsRelativePath",
+		name: "Assets relative path",
+		desc: "Relative path from content files to assets (used in Markdown image links)",
+		placeholder: "../../assets/",
+	},
+	{
+		type: "toggle",
+		key: "usePostTypeSubdirectories",
+		name: "Use post type subdirectories",
+		desc: "Organize content by post type in subdirectories (e.g., blog/, essays/). When off, files are published to the root of the content directory.",
+	},
+	{
+		type: "toggle",
+		key: "autoPublish",
+		name: "Auto-publish",
+		desc: "When on, the publish command will always publish the current file. When off, the publish command will only publish files that explicitly have pb-publish set to true in the frontmatter.",
+	},
+];
 
 export class GitHubPublisherSettingTab extends PluginSettingTab {
 	plugin: GitHubPublisherPlugin;
@@ -34,107 +121,104 @@ export class GitHubPublisherSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	getControlValue(key: string): unknown {
+		return this.plugin.settings[key as keyof GitHubPublisherSettings];
+	}
+
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		const settings = this.plugin.settings as unknown as Record<
+			string,
+			unknown
+		>;
+		settings[key] = value;
+		await this.plugin.saveSettings();
+	}
+
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		return SETTING_FIELDS.map((field) => {
+			if (field.type === "toggle") {
+				return {
+					name: field.name,
+					desc: field.desc,
+					control: { type: "toggle" as const, key: field.key },
+				};
+			}
+
+			if (field.type === "password") {
+				return {
+					name: field.name,
+					desc: field.desc,
+					render: (setting: Setting) => {
+						this.addSecretText(setting, field.key);
+					},
+				};
+			}
+
+			return {
+				name: field.name,
+				desc: field.desc,
+				control: {
+					type: "text" as const,
+					key: field.key,
+					placeholder: field.placeholder,
+				},
+			};
+		});
+	}
+
 	display(): void {
-		const {containerEl} = this;
+		const { containerEl } = this;
 
 		containerEl.empty();
 
-		new Setting(containerEl)
-			.setName('GitHub owner')
-			.setDesc('Owner of the GitHub repository')
-			.addText(text => text
-				.setPlaceholder('e.g., owner in github.com/owner/repo')
-				.setValue(this.plugin.settings.owner)
-				.onChange(async (value) => {
-					this.plugin.settings.owner = value;
-					await this.plugin.saveSettings();
-				}));
+		for (const field of SETTING_FIELDS) {
+			const setting = new Setting(containerEl)
+				.setName(field.name)
+				.setDesc(field.desc);
 
-		new Setting(containerEl)
-			.setName('GitHub repository')
-			.setDesc('Repository name')
-			.addText(text => text
-				.setPlaceholder('e.g., repo in github.com/owner/repo')
-				.setValue(this.plugin.settings.repo)
-				.onChange(async (value) => {
-					this.plugin.settings.repo = value;
-					await this.plugin.saveSettings();
-				}));
+			if (field.type === "toggle") {
+				const key = field.key;
+				setting.addToggle((toggle) =>
+					toggle
+						.setValue(this.plugin.settings[key])
+						.onChange(async (value) => {
+							this.plugin.settings[key] = value;
+							await this.plugin.saveSettings();
+						}),
+				);
+				continue;
+			}
 
-		new Setting(containerEl)
-			.setName('GitHub personal access token')
-			.setDesc('Token with write permissions for the repository')
-			.addText(text => {
-				text.inputEl.type = 'password';
+			if (field.type === "password") {
+				this.addSecretText(setting, field.key);
+				continue;
+			}
+
+			const key = field.key;
+			const placeholder = field.placeholder;
+			setting.addText((text) => {
+				if (placeholder) {
+					text.setPlaceholder(placeholder);
+				}
 				return text
-					.setValue(this.plugin.settings.gitPAT)
+					.setValue(this.plugin.settings[key])
 					.onChange(async (value) => {
-						this.plugin.settings.gitPAT = value;
+						this.plugin.settings[key] = value;
 						await this.plugin.saveSettings();
 					});
 			});
+		}
+	}
 
-		new Setting(containerEl)
-			.setName('Branch')
-			.setDesc('Git branch to commit to')
-			.addText(text => text
-				.setValue(this.plugin.settings.branch)
+	private addSecretText(setting: Setting, key: TextSettingKey) {
+		setting.addText((text) => {
+			text.inputEl.type = "password";
+			return text
+				.setValue(this.plugin.settings[key])
 				.onChange(async (value) => {
-					this.plugin.settings.branch = value;
+					this.plugin.settings[key] = value;
 					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Content directory')
-			.setDesc('Base content directory in your repository')
-			.addText(text => text
-				.setPlaceholder('./src/content/')
-				.setValue(this.plugin.settings.contentDir)
-				.onChange(async (value) => {
-					this.plugin.settings.contentDir = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Assets directory')
-			.setDesc('Directory where images are stored in your repository')
-			.addText(text => text
-				.setPlaceholder('./src/assets/')
-				.setValue(this.plugin.settings.assetsDir)
-				.onChange(async (value) => {
-					this.plugin.settings.assetsDir = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Assets relative path')
-			.setDesc('Relative path from content files to assets (used in Markdown image links)')
-			.addText(text => text
-				.setPlaceholder('../../assets/')
-				.setValue(this.plugin.settings.assetsRelativePath)
-				.onChange(async (value) => {
-					this.plugin.settings.assetsRelativePath = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Use post type subdirectories')
-			.setDesc('Organize content by post type in subdirectories (e.g., blog/, essays/). When off, files are published to the root of the content directory.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.usePostTypeSubdirectories)
-				.onChange(async (value) => {
-					this.plugin.settings.usePostTypeSubdirectories = value;
-					await this.plugin.saveSettings();
-				}));
-
-		new Setting(containerEl)
-			.setName('Auto-publish')
-			.setDesc('When on, the publish command will always publish the current file. When off, the publish command will only publish files that explicitly have pb-publish set to true in the frontmatter.')
-			.addToggle(toggle => toggle
-				.setValue(this.plugin.settings.autoPublish)
-				.onChange(async (value) => {
-					this.plugin.settings.autoPublish = value;
-					await this.plugin.saveSettings();
-				}));
+				});
+		});
 	}
 }
